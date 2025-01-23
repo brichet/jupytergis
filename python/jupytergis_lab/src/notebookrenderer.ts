@@ -1,16 +1,12 @@
 import { ICollaborativeDrive } from '@jupyter/collaborative-drive';
-import {
-  JupyterGISPanel,
-  JupyterGISWidget,
-  ToolbarWidget
-} from '@jupytergis/base';
+import { JupyterGISWidget } from '@jupytergis/base';
 import { JupyterGISModel, IJupyterGISDoc } from '@jupytergis/schema';
-
 import {
   JupyterFrontEnd,
   JupyterFrontEndPlugin
 } from '@jupyterlab/application';
 import { Contents } from '@jupyterlab/services';
+import { IDocumentManager } from '@jupyterlab/docmanager';
 import { MessageLoop } from '@lumino/messaging';
 import { Panel, Widget } from '@lumino/widgets';
 import * as Y from 'yjs';
@@ -35,20 +31,17 @@ export class YJupyterGISModel extends JupyterYModel {
 }
 
 export class YJupyterGISLuminoWidget extends Panel {
-  constructor(options: { model: JupyterGISModel }) {
+  constructor(options: { docManager: IDocumentManager }) {
     super();
 
     this.addClass(CLASS_NAME);
-    this._jgisWidget = new JupyterGISWidget({
-      // FIXME: Where do we get a context object?
-      // context: ...,
-      content: new JupyterGISPanel(options),
-      toolbar: new ToolbarWidget({
-        model: options.model,
-        externalCommands: [],
-      }),
-    });
-    this.addWidget(this._jgisWidget);
+    const path = 'examples/france_hiking.jGIS'
+    const widget = options.docManager.open(`RTC:${path}`);
+    if (widget instanceof JupyterGISWidget) {
+      this._jgisWidget = widget;
+      this.addWidget(this._jgisWidget);
+      this._jgisWidget.show();
+    }
   }
 
   onResize = (): void => {
@@ -66,9 +59,11 @@ export class YJupyterGISLuminoWidget extends Panel {
 export const notebookRenderePlugin: JupyterFrontEndPlugin<void> = {
   id: 'jupytergis:yjswidget-plugin',
   autoStart: true,
+  requires: [IDocumentManager],
   optional: [IJupyterYWidgetManager, ICollaborativeDrive],
   activate: (
     app: JupyterFrontEnd,
+    docManager: IDocumentManager,
     yWidgetManager?: IJupyterYWidgetManager,
     drive?: ICollaborativeDrive
   ): void => {
@@ -105,12 +100,10 @@ export const notebookRenderePlugin: JupyterFrontEndPlugin<void> = {
     class YJupyterGISWidget implements IJupyterYWidget {
       constructor(yModel: YJupyterGISModel, node: HTMLElement) {
         this.yModel = yModel;
+        console.log('MODEL', yModel);
         this.node = node;
 
-        const widget = new YJupyterGISLuminoWidget({
-          model: yModel.jupyterGISModel
-        });
-        // Widget.attach(widget, node);
+        const widget = new YJupyterGISLuminoWidget({ docManager });
 
         MessageLoop.sendMessage(widget, Widget.Msg.BeforeAttach);
         node.appendChild(widget.node);
